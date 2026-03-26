@@ -1,3 +1,40 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "django-ecp-signer"
+version = "0.1.0"
+description = "Django authentication via ECDSA digital signatures and PKCS#12 certificates"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = [
+    "django>=4.2",
+    "cryptography>=42.0",
+]
+classifiers = [
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Framework :: Django :: 5.0",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Security :: Cryptography",
+]
+
+[project.urls]
+Homepage = "https://github.com/zakhkatya/django-ecp-signer"
+Repository = "https://github.com/zakhkatya/django-ecp-signer"
+Issues = "https://github.com/zakhkatya/django-ecp-signer/issues"
+
+[tool.setuptools.packages.find]
+include = ["ecp_auth*"]
+exclude = ["tests*"]
+
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "tests.django_settings"
+DJANGO_SETTINGS_MODULE = "tests.settings"
 pythonpath = ["."]
