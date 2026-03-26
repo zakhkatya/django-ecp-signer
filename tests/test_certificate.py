@@ -1,3 +1,4 @@
+import pytest
 from ecp_auth.certificate import CertificateParser
 from ecp_auth.exceptions import InvalidCertificateError
 from tests.conftest import make_cert_and_key
@@ -25,11 +26,8 @@ def test_common_name():
 
 
 def test_invalid_bytes():
-    try:
+    with pytest.raises(InvalidCertificateError):
         CertificateParser(b"not a certificate")
-        assert False
-    except InvalidCertificateError:
-        assert True
 
 
 def test_to_dict():
