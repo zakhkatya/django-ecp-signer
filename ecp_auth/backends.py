@@ -26,7 +26,7 @@ class ECPAuthenticationBackend(ModelBackend):
             self._check_expired(cert.certificate_pem.encode())
             self._verify_signature(nonce, signature, cert.certificate_pem.encode())
             nonce.consume()
-            return self._get_user(taxpayer_id)
+            return self._get_user(cert)
         except (
             NonceNotFoundError,
             NonceExpiredError,
@@ -60,8 +60,5 @@ class ECPAuthenticationBackend(ModelBackend):
         if CertificateParser(cert_pem).is_expired():
             raise CertificateExpiredError("Certificate is expired")
 
-    def _get_user(self, taxpayer_id: str):
-        try:
-            return ECPCertificate.objects.get(taxpayer_id=taxpayer_id).user
-        except ECPCertificate.DoesNotExist:
-            return None
+    def _get_user(self, cert: ECPCertificate):
+        return cert.user
