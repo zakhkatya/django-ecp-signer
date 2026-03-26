@@ -1,13 +1,5 @@
 from django.conf import settings
+from datetime import timedelta
 
-DEFAULTS = {
-    "NONCE_TTL_SECONDS": 300,
-}
+NONCE_LIFETIME = getattr(settings, "NONCE_LIFETIME", timedelta(minutes=5))
 
-
-def get_setting(key: str):
-    """Return ECP_AUTH[key] from Django settings, falling back to DEFAULTS."""
-    ecp_settings = getattr(settings, "ECP_AUTH", {})
-    if key in ecp_settings:
-        return ecp_settings[key]
-    return DEFAULTS[key]

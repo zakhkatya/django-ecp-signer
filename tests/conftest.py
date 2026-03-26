@@ -27,14 +27,22 @@ def make_cert_and_key(taxpayer_id: str = "1234567890", expired: bool = False):
 
     cert = (
         x509.CertificateBuilder()
-        .subject_name(x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, "Тестовий Користувач"),
-            # serialNumber carries the taxpayer ID (РНОКПП) in Ukrainian certs.
-            x509.NameAttribute(NameOID.SERIAL_NUMBER, taxpayer_id),
-        ]))
-        .issuer_name(x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, "Test CA"),
-        ]))
+        .subject_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COMMON_NAME, "Тестовий Користувач"),
+                    # serialNumber carries the taxpayer ID (РНОКПП) in Ukrainian certs.
+                    x509.NameAttribute(NameOID.SERIAL_NUMBER, taxpayer_id),
+                ]
+            )
+        )
+        .issuer_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COMMON_NAME, "Test CA"),
+                ]
+            )
+        )
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(not_before)

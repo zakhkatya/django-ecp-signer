@@ -37,8 +37,7 @@ class SignatureValidator:
 
         # Reject RSA or other key types — only ECDSA is supported.
         if not isinstance(public_key, ec.EllipticCurvePublicKey):
-            raise InvalidCertificateError(
-                "Certificate must contain ECDSA public key")
+            raise InvalidCertificateError("Certificate must contain ECDSA public key")
 
         try:
             public_key.verify(signature, data, ec.ECDSA(hashes.SHA256()))

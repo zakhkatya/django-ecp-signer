@@ -20,7 +20,9 @@ def test_p12_loadable():
     # The P12 container must be loadable back without a password.
     key, cert_pem = generate_key_and_certificate("1234567890", "Тарас Шевченко")
     p12_bytes = generate_p12(key, cert_pem)
-    loaded_key, loaded_cert, _ = pkcs12.load_key_and_certificates(p12_bytes, password=None)
+    loaded_key, loaded_cert, _ = pkcs12.load_key_and_certificates(
+        p12_bytes, password=None
+    )
     assert loaded_cert is not None
     assert loaded_key is not None
 
@@ -31,4 +33,6 @@ def test_private_key_matches_certificate():
     cert = x509.load_pem_x509_certificate(cert_pem)
     fmt = serialization.PublicFormat.SubjectPublicKeyInfo
     enc = serialization.Encoding.PEM
-    assert cert.public_key().public_bytes(enc, fmt) == key.public_key().public_bytes(enc, fmt)
+    assert cert.public_key().public_bytes(enc, fmt) == key.public_key().public_bytes(
+        enc, fmt
+    )

@@ -15,15 +15,13 @@ class CertificateParser:
 
     def extract_taxpayer_id(self) -> str:
         """Extracts РНОКПП from certificate Subject serialNumber field."""
-        attrs = self._cert.subject.get_attributes_for_oid(
-            NameOID.SERIAL_NUMBER)
+        attrs = self._cert.subject.get_attributes_for_oid(NameOID.SERIAL_NUMBER)
         if attrs:
             # Ukrainian qualified certificates may prefix the number with
             # "РНОКПП" or the older "ІПН" label — strip both variants.
             # Cast to str: cryptography types .value as bytes | str, but DN
             # string attributes are always str at runtime.
-            value = str(attrs[0].value).replace(
-                "РНОКПП", "").replace("ІПН", "").strip()
+            value = str(attrs[0].value).replace("РНОКПП", "").replace("ІПН", "").strip()
             # A valid Ukrainian taxpayer ID is exactly 10 digits.
             if value.isdigit() and len(value) == 10:
                 return value
@@ -43,8 +41,7 @@ class CertificateParser:
 
     def get_organization(self) -> str | None:
         """Returns organization name if present."""
-        attrs = self._cert.subject.get_attributes_for_oid(
-            NameOID.ORGANIZATION_NAME)
+        attrs = self._cert.subject.get_attributes_for_oid(NameOID.ORGANIZATION_NAME)
         return str(attrs[0].value) if attrs else None
 
     def to_dict(self) -> dict:
