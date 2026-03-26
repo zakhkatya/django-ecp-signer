@@ -22,7 +22,7 @@ class CertificateDownloadView(View):
     def get(self, request, *args, **kwargs):
         p12_b64 = request.session.pop('ecp_p12', None)
         if not p12_b64:
-            return HttpResponse("PKCS#12 файл не знайдено у сесії", status=404)
+            return HttpResponse("PKCS#12 file not found in session", status=404)
 
         p12_bytes = base64.b64decode(p12_b64)
 
