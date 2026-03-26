@@ -21,7 +21,7 @@ class ECPNonce(models.Model):
         nonce_age = timezone.now() - self.created_at
 
         return (not self.used) and (
-            nonce_age.total_seconds() < conf.NONCE_LIFETIME.total_seconds()
+            nonce_age.total_seconds() < conf.get_nonce_lifetime().total_seconds()
         )
 
     def consume(self):
@@ -33,6 +33,6 @@ class ECPCertificate(models.Model):
     """This model represents ecp certificate."""
 
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
-    taxpayer_id = models.CharField(max_length=256, unique=True)
+    taxpayer_id = models.CharField(max_length=10, unique=True)
     certificate_pem = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
