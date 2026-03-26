@@ -9,7 +9,7 @@ from .models import ECPNonce
 class ChallengeView(View):
     """GET /ecp/challenge/ — issue a fresh nonce to the client."""
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         nonce = ECPNonce.objects.create()
         return JsonResponse({"nonce": nonce.value, "nonce_id": nonce.pk})
 
@@ -17,7 +17,7 @@ class ChallengeView(View):
 class CertificateDownloadView(View):
     """GET /ecp/certificate/download/ — return the PKCS#12 archive from session."""
 
-    def get(self, request, *args, **kwargs):
+    def get(self, request):
         p12_b64 = request.session.pop("ecp_p12", None)
         if p12_b64 is None:
             return HttpResponse(status=404)
