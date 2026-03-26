@@ -1,55 +1,67 @@
 from django.contrib.auth.backends import ModelBackend
-from django.utils import timezone
-from .models import ECPCertificate, Nonce
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography import x509
-from cryptography.exceptions import InvalidSignature
-import base64
+from django.contrib.auth import get_user_model
+
+from .models import ECPNonce, ECPCertificate
+from .validators import SignatureValidator
+from .certificate import CertificateParser
+from .exceptions import (
+    NonceNotFoundError,
+    NonceExpiredError,
+    InvalidSignatureError,
+    InvalidCertificateError,
+    CertificateExpiredError,
+)
+
+User = get_user_model()
 
 
 class ECPAuthenticationBackend(ModelBackend):
 
     def authenticate(self, request, signature=None, taxpayer_id=None, nonce_id=None, **kwargs):
-        # Get nonce
+        if not (signature and taxpayer_id and nonce_id):
+            return None
         try:
-            nonce = Nonce.objects.get(id=nonce_id, consumed=False)
-        except Nonce.DoesNotExist:
+            nonce = self._get_nonce(nonce_id)
+            cert = self._get_certificate(taxpayer_id)
+            self._check_expired(cert.certificate_pem.encode())
+            self._verify_signature(nonce, signature, cert.certificate_pem.encode())
+            nonce.consume()
+            return self._get_user(taxpayer_id)
+        except (
+            NonceNotFoundError,
+            NonceExpiredError,
+            InvalidSignatureError,
+            InvalidCertificateError,
+            CertificateExpiredError,
+        ):
             return None
 
-        # Get certificate from DB
+    def _get_nonce(self, nonce_id: str) -> ECPNonce:
         try:
-            cert_entry = ECPCertificate.objects.get(taxpayer_id=taxpayer_id)
+            nonce = ECPNonce.objects.get(value=nonce_id)
+        except ECPNonce.DoesNotExist:
+            raise NonceNotFoundError(f"Nonce not found: {nonce_id}")
+        if not nonce.is_valid():
+            raise NonceExpiredError("Nonce is expired or already used")
+        return nonce
+
+    def _get_certificate(self, taxpayer_id: str) -> ECPCertificate:
+        try:
+            return ECPCertificate.objects.get(taxpayer_id=taxpayer_id)
+        except ECPCertificate.DoesNotExist:
+            raise InvalidCertificateError(
+                f"No certificate registered for taxpayer_id: {taxpayer_id}"
+            )
+
+    def _verify_signature(self, nonce: ECPNonce, signature: bytes, cert_pem: bytes) -> None:
+        SignatureValidator().verify(nonce.value.encode(), signature, cert_pem)
+
+    def _check_expired(self, cert_pem: bytes) -> None:
+        if CertificateParser(cert_pem).is_expired():
+            raise CertificateExpiredError("Certificate is expired")
+
+    def _get_user(self, taxpayer_id: str):
+        try:
+            return ECPCertificate.objects.get(taxpayer_id=taxpayer_id).user
         except ECPCertificate.DoesNotExist:
             return None
-
-        cert_pem = cert_entry.certificate_pem.encode()
-
-        # Verify signature
-        if not self._verify_signature(nonce.value.encode(), signature, cert_pem):
-            return None
-
-        # Check expiration
-        if not self._check_expired(cert_pem):
-            return None
-
-        # Mark nonce as consumed
-        nonce.consume()
-        return cert_entry.user
-
-    def _verify_signature(self, nonce_bytes, signature_b64, cert_pem):
-        try:
-            signature = base64.b64decode(signature_b64)
-            cert = x509.load_pem_x509_certificate(cert_pem)
-            public_key = cert.public_key()
-            public_key.verify(signature, nonce_bytes, ec.ECDSA(hashes.SHA256()))
-            return True
-        except (InvalidSignature, ValueError):
-            return False
-
-    def _check_expired(self, cert_pem):
-        cert = x509.load_pem_x509_certificate(cert_pem)
-        now = timezone.now()
-        not_before = cert.not_valid_before.replace(tzinfo=timezone.utc)
-        not_after = cert.not_valid_after.replace(tzinfo=timezone.utc)
-        return not_before <= now <= not_after
