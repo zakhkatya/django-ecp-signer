@@ -23,8 +23,9 @@ class ECPAuthenticationBackend(ModelBackend):
         try:
             nonce = self._get_nonce(nonce_id)
             cert = self._get_certificate(taxpayer_id)
-            self._check_expired(cert.certificate_pem.encode())
-            self._verify_signature(nonce, signature, cert.certificate_pem.encode())
+            cert_pem = cert.certificate_pem.encode()
+            self._check_expired(cert_pem)
+            self._verify_signature(nonce, signature, cert_pem)
             nonce.consume()
             return self._get_user(cert)
         except (
