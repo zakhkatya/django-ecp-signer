@@ -3,13 +3,6 @@ from django.contrib.auth.mixins import FormView
 from .models import ECPCertificate
 from .backends import ECPAuthenticationBackend
 from .generator import generate_key_and_certificate, generate_p12
-
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.serialization import pkcs12
-from cryptography.x509 import NameOID
-from cryptography import x509
-import datetime
 import base64
 
 class ECPGenerateMixin(FormView):
