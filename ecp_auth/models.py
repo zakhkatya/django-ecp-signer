@@ -3,8 +3,7 @@ from django.db import models
 from django.utils import timezone
 import secrets
 
-# Value in minutes
-NONCE_LIFETIME = 5
+from . import conf
 
 
 def gen_secret_token():
@@ -26,7 +25,7 @@ class ECPNonce(models.Model):
         nonce_age = timezone.now() - self.created_at
 
         return (not self.used) and (
-            int(nonce_age.total_seconds()/60) < NONCE_LIFETIME
+            nonce_age.total_seconds() < conf.NONCE_LIFETIME.total_seconds()
         )
 
     def consume(self):
