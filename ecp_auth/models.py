@@ -11,13 +11,9 @@ def gen_secret_token():
 
 
 class ECPNonce(models.Model):
-    """ This model represents ecp nonce.
-    """
-    value = models.CharField(
-        max_length=64,
-        default=gen_secret_token,
-        unique=True
-    )
+    """This model represents ecp nonce."""
+
+    value = models.CharField(max_length=64, default=gen_secret_token, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     used = models.BooleanField(default=False)
 
@@ -30,11 +26,12 @@ class ECPNonce(models.Model):
 
     def consume(self):
         self.used = True
+        self.save()
 
 
 class ECPCertificate(models.Model):
-    """ This model represents ecp certificate.
-    """
+    """This model represents ecp certificate."""
+
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
     taxpayer_id = models.CharField(max_length=256, unique=True)
     certificate_pem = models.TextField()

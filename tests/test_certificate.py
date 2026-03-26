@@ -21,8 +21,7 @@ def test_expired():
 
 def test_common_name():
     _, cert_pem = make_cert_and_key()
-    assert CertificateParser(
-        cert_pem).get_common_name() == "Тестовий Користувач"
+    assert CertificateParser(cert_pem).get_common_name() == "Тестовий Користувач"
 
 
 def test_invalid_bytes():

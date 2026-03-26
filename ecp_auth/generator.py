@@ -6,7 +6,9 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509.oid import NameOID
 
 
-def generate_key_and_certificate(taxpayer_id: str, common_name: str) -> tuple[ec.EllipticCurvePrivateKey, bytes]:
+def generate_key_and_certificate(
+    taxpayer_id: str, common_name: str
+) -> tuple[ec.EllipticCurvePrivateKey, bytes]:
     """Generate an EC private key and a self-signed X.509 certificate.
 
     The certificate embeds the taxpayer ID (РНОКПП) in the serialNumber field,
@@ -19,14 +21,22 @@ def generate_key_and_certificate(taxpayer_id: str, common_name: str) -> tuple[ec
     now = datetime.datetime.now(datetime.timezone.utc)
     cert = (
         x509.CertificateBuilder()
-        .subject_name(x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-            # serialNumber carries the taxpayer ID (РНОКПП) in Ukrainian certs.
-            x509.NameAttribute(NameOID.SERIAL_NUMBER, taxpayer_id),
-        ]))
-        .issuer_name(x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-        ]))
+        .subject_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                    # serialNumber carries the taxpayer ID (РНОКПП) in Ukrainian certs.
+                    x509.NameAttribute(NameOID.SERIAL_NUMBER, taxpayer_id),
+                ]
+            )
+        )
+        .issuer_name(
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                ]
+            )
+        )
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
         .not_valid_before(now)
