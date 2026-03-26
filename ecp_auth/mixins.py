@@ -2,6 +2,7 @@ from django.contrib.auth import login
 from django.contrib.auth.mixins import FormView
 from .models import ECPCertificate
 from .backends import ECPAuthenticationBackend
+from .generator import generate_key_and_certificate, generate_p12
 
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -9,6 +10,7 @@ from cryptography.hazmat.primitives.serialization import pkcs12
 from cryptography.x509 import NameOID
 from cryptography import x509
 import datetime
+import base64
 
 class ECPGenerateMixin(FormView):
 
@@ -17,44 +19,22 @@ class ECPGenerateMixin(FormView):
         username = user.username
         taxpayer_id = form.cleaned_data['taxpayer_id']
 
-        private_key = ec.generate_private_key(ec.SECP256R1())
+        # Generate a new key and self-signed certificate for the user
+        private_key, cert_pem = generate_key_and_certificate(taxpayer_id, username)
 
-        # Generate certificate
-        subject = issuer = x509.Name([
-            x509.NameAttribute(NameOID.COMMON_NAME, username),
-        ])
-        cert = (
-            x509.CertificateBuilder()
-            .subject_name(subject)
-            .issuer_name(issuer)
-            .public_key(private_key.public_key())
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.datetime.utcnow())
-            .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365))
-            .sign(private_key, hashes.SHA256())
-        )
-
-        cert_pem = cert.public_bytes(serialization.Encoding.PEM)
-
-        # certificate in db
-        ECPCertificate.objects.create(
+        # Save the certificate in the database
+        ECPCertificate.objects.update_or_create(
             user=user,
-            cert_pem=cert_pem,
-            taxpayer_id=taxpayer_id
+            defaults={
+                'taxpayer_id': taxpayer_id,
+                'certificate_pem': cert_pem.decode(),
+            }
         )
 
-        # generate .p12
-        p12 = pkcs12.serialize_key_and_certificates(
-            name=username.encode(),
-            key=private_key,
-            cert=cert,
-            cas=None,
-            encryption_algorithm=serialization.BestAvailableEncryption(b"change_me")
-        )
+        # Generate PKCS#12 archive and store it in session for download
+        p12_bytes = generate_p12(private_key, cert_pem)
+        self.request.session['ecp_p12'] = base64.b64encode(p12_bytes).decode()
 
-        self.request.session['ecp_p12'] = p12
-
-        # return .p12 to user without saving it in db
         return super().form_valid(form)
 
 
