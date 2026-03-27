@@ -1,20 +1,20 @@
 import logging
 from typing import Any
 
-from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import ModelBackend
 from django.http import HttpRequest
 
-from .models import ECPNonce, ECPCertificate
-from .validators import SignatureValidator
 from .certificate import CertificateParser
 from .exceptions import (
-    NonceNotFoundError,
-    NonceExpiredError,
-    InvalidSignatureError,
-    InvalidCertificateError,
     CertificateExpiredError,
+    InvalidCertificateError,
+    InvalidSignatureError,
+    NonceExpiredError,
+    NonceNotFoundError,
 )
+from .models import ECPCertificate, ECPNonce
+from .validators import SignatureValidator
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ class ECPAuthenticationBackend(ModelBackend):
         Returns:
             The authenticated ``User`` instance on success, or ``None`` if
             any verification step fails.
+
         """
         if not (signature and username and nonce_id):
             return None
@@ -59,7 +60,6 @@ class ECPAuthenticationBackend(ModelBackend):
             self._check_expired(cert_pem)
             self._verify_signature(nonce, signature, cert_pem)
             nonce.consume()
-            return user
         except (
             NonceNotFoundError,
             NonceExpiredError,
@@ -69,6 +69,8 @@ class ECPAuthenticationBackend(ModelBackend):
         ) as exc:
             logger.warning("ECP authentication failed for username=%s: %s", username, exc)
             return None
+        else:
+            return user
 
     def _get_nonce(self, nonce_id: int) -> ECPNonce:
         """Fetch and validate a nonce by primary key.
@@ -82,6 +84,7 @@ class ECPAuthenticationBackend(ModelBackend):
         Raises:
             NonceNotFoundError: If no nonce with the given ID exists.
             NonceExpiredError: If the nonce has already been used or has expired.
+
         """
         try:
             nonce = ECPNonce.objects.get(pk=nonce_id)
@@ -102,6 +105,7 @@ class ECPAuthenticationBackend(ModelBackend):
 
         Raises:
             InvalidCertificateError: If no user with that username exists.
+
         """
         try:
             return User.objects.get(username=username)
@@ -119,15 +123,14 @@ class ECPAuthenticationBackend(ModelBackend):
 
         Raises:
             InvalidCertificateError: If no certificate is registered for the user.
+
         """
         try:
             return ECPCertificate.objects.get(user=user)
         except ECPCertificate.DoesNotExist:
             raise InvalidCertificateError(f"No certificate for user: {user.username}")
 
-    def _verify_signature(
-        self, nonce: ECPNonce, signature: bytes, cert_pem: bytes
-    ) -> None:
+    def _verify_signature(self, nonce: ECPNonce, signature: bytes, cert_pem: bytes) -> None:
         """Verify the ECDSA signature against the nonce value.
 
         Args:
@@ -137,6 +140,7 @@ class ECPAuthenticationBackend(ModelBackend):
 
         Raises:
             InvalidSignatureError: If verification fails.
+
         """
         SignatureValidator().verify(nonce.value.encode(), signature, cert_pem)
 
@@ -148,6 +152,7 @@ class ECPAuthenticationBackend(ModelBackend):
 
         Raises:
             CertificateExpiredError: If the certificate validity period has passed.
+
         """
         if CertificateParser(cert_pem).is_expired():
             raise CertificateExpiredError("Certificate is expired")

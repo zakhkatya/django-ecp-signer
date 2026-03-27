@@ -1,7 +1,8 @@
 import datetime
+
 from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
 
@@ -20,21 +21,26 @@ def generate_key_and_certificate(
     Returns:
         A ``(private_key, cert_pem)`` tuple where ``cert_pem`` is the
         PEM-encoded certificate as bytes.
+
     """
     key = ec.generate_private_key(ec.SECP256R1())
 
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(datetime.UTC)
     cert = (
         x509.CertificateBuilder()
         .subject_name(
-            x509.Name([
-                x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-            ])
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                ]
+            )
         )
         .issuer_name(
-            x509.Name([
-                x509.NameAttribute(NameOID.COMMON_NAME, common_name),
-            ])
+            x509.Name(
+                [
+                    x509.NameAttribute(NameOID.COMMON_NAME, common_name),
+                ]
+            )
         )
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
@@ -55,6 +61,7 @@ def private_key_to_pem(private_key: ec.EllipticCurvePrivateKey) -> str:
 
     Returns:
         A PEM-encoded string beginning with ``-----BEGIN PRIVATE KEY-----``.
+
     """
     return private_key.private_bytes(
         encoding=serialization.Encoding.PEM,

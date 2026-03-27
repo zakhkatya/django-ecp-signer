@@ -4,7 +4,7 @@ from django.views import View
 
 from .models import ECPNonce
 
-_CHALLENGE_RATE_LIMIT = 10   # max requests per window
+_CHALLENGE_RATE_LIMIT = 10  # max requests per window
 _CHALLENGE_RATE_WINDOW = 60  # window size in seconds
 
 
@@ -25,13 +25,13 @@ class ChallengeView(View):
         Returns:
             ``200 OK`` with ``{"nonce": str, "nonce_id": int}``, or
             ``429 Too Many Requests`` if the rate limit is exceeded.
+
         """
         ip = request.META.get("REMOTE_ADDR", "unknown")
         key = f"ecp_challenge:{ip}"
 
-        if not cache.add(key, 1, timeout=_CHALLENGE_RATE_WINDOW):
-            if cache.incr(key) > _CHALLENGE_RATE_LIMIT:
-                return HttpResponse(status=429)
+        if not cache.add(key, 1, timeout=_CHALLENGE_RATE_WINDOW) and cache.incr(key) > _CHALLENGE_RATE_LIMIT:
+            return HttpResponse(status=429)
 
         nonce = ECPNonce.objects.create()
         return JsonResponse({"nonce": nonce.value, "nonce_id": nonce.pk})
@@ -55,6 +55,7 @@ class KeyDisplayView(View):
         Returns:
             ``200 OK`` with ``{"private_key": str, "certificate": str}``, or
             ``404 Not Found`` if the session data is absent.
+
         """
         key_pem = request.session.pop("ecp_key_pem", None)
         cert_pem = request.session.pop("ecp_cert_pem", None)
@@ -62,7 +63,9 @@ class KeyDisplayView(View):
         if key_pem is None:
             return HttpResponse(status=404)
 
-        return JsonResponse({
-            "private_key": key_pem,
-            "certificate": cert_pem,
-        })
+        return JsonResponse(
+            {
+                "private_key": key_pem,
+                "certificate": cert_pem,
+            }
+        )

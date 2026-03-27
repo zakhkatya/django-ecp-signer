@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('ecp_auth', '0002_alter_ecpcertificate_taxpayer_id'),
+        ("ecp_auth", "0002_alter_ecpcertificate_taxpayer_id"),
     ]
 
     operations = [
         migrations.RemoveField(
-            model_name='ecpcertificate',
-            name='taxpayer_id',
+            model_name="ecpcertificate",
+            name="taxpayer_id",
         ),
     ]

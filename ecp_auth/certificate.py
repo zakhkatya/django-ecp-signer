@@ -1,4 +1,5 @@
 import datetime
+
 from cryptography import x509
 from cryptography.x509.oid import NameOID
 
@@ -13,9 +14,19 @@ class CertificateParser:
 
     Raises:
         InvalidCertificateError: If the certificate cannot be parsed.
+
     """
 
     def __init__(self, cert_pem: bytes) -> None:
+        """Parse the PEM-encoded certificate.
+
+        Args:
+            cert_pem: PEM-encoded certificate bytes.
+
+        Raises:
+            InvalidCertificateError: If the bytes cannot be parsed as a certificate.
+
+        """
         try:
             self._cert = x509.load_pem_x509_certificate(cert_pem)
         except Exception as e:
@@ -26,8 +37,9 @@ class CertificateParser:
 
         Returns:
             True if the current UTC time is past ``not_valid_after``.
+
         """
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         return now > self._cert.not_valid_after_utc
 
     def get_common_name(self) -> str:
@@ -38,6 +50,7 @@ class CertificateParser:
 
         Raises:
             InvalidCertificateError: If the CN field is not present.
+
         """
         attrs = self._cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
         if not attrs:
@@ -49,6 +62,7 @@ class CertificateParser:
 
         Returns:
             The organization name, or None if the field is absent.
+
         """
         attrs = self._cert.subject.get_attributes_for_oid(NameOID.ORGANIZATION_NAME)
         return str(attrs[0].value) if attrs else None
@@ -59,6 +73,7 @@ class CertificateParser:
         Returns:
             A dict with keys ``common_name``, ``organization``,
             ``not_valid_before``, and ``not_valid_after`` (ISO 8601 strings).
+
         """
         return {
             "common_name": self.get_common_name(),

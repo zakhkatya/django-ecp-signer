@@ -1,9 +1,9 @@
 from cryptography import x509
-from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec
 
-from .exceptions import InvalidSignatureError, InvalidCertificateError
+from .exceptions import InvalidCertificateError, InvalidSignatureError
 
 
 class SignatureValidator:
@@ -30,6 +30,7 @@ class SignatureValidator:
                 does not contain an ECDSA public key.
             InvalidSignatureError: If signature verification fails or the
                 signature bytes are malformed.
+
         """
         try:
             cert = x509.load_pem_x509_certificate(cert_pem)
@@ -43,8 +44,9 @@ class SignatureValidator:
 
         try:
             public_key.verify(signature, data, ec.ECDSA(hashes.SHA256()))
-            return True
         except InvalidSignature:
             raise InvalidSignatureError("Signature verification failed")
         except Exception as e:
             raise InvalidSignatureError(f"Unexpected error during verification: {e}")
+        else:
+            return True

@@ -11,6 +11,8 @@ def get_nonce_lifetime() -> timedelta:
     Returns:
         The nonce lifetime as a ``timedelta``. Defaults to 5 minutes if
         ``NONCE_LIFETIME`` is not set.
+
     """
     from django.conf import settings
+
     return getattr(settings, "NONCE_LIFETIME", timedelta(minutes=5))

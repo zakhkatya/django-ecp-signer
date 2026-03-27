@@ -56,7 +56,20 @@ indent-width = 4
 target-version = "py312"
 
 [tool.ruff.lint]
-ignore = ["ISC001", "D203", "D213"]
+ignore = [
+    "ISC001",  # conflicts with formatter
+    "D203",    # conflicts with D211
+    "D213",    # conflicts with D212
+    "D100",    # missing docstring in public module — not required for every file
+    "D104",    # missing docstring in public package — __init__.py intentionally empty
+    "ANN401",  # Any is required for Django's user model and generic returns
+    "ARG002",  # unused method argument — Django's authenticate() requires request/**kwargs
+    "TRY003",  # long exception messages — acceptable for descriptive errors
+    "EM101",   # string literal in exception — acceptable for simple messages
+    "EM102",   # f-string in exception — acceptable for descriptive errors
+    "B904",    # raise from err — not always needed for domain exceptions
+    "RUF012",  # mutable class attribute — Django model fields require this pattern
+]
 select = [
     "ANN", # flake8-annotations
     "ARG", # flake8-arguments
@@ -89,6 +102,11 @@ select = [
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+"ecp_auth/migrations/*" = ["D", "ANN", "RUF", "Q", "N"]
+"ecp_auth/django-stubs-settings.py" = ["N999"]
+"tests/*" = ["D", "ANN", "S"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -1,7 +1,8 @@
+import secrets
+
 from django.contrib.auth import get_user_model
 from django.db import models
 from django.utils import timezone
-import secrets
 
 from . import conf
 
@@ -11,6 +12,7 @@ def gen_secret_token() -> str:
 
     Returns:
         A 64-character hexadecimal string (32 random bytes).
+
     """
     return secrets.token_hex(32)
 
@@ -26,17 +28,20 @@ class ECPNonce(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     used = models.BooleanField(default=False)
 
+    def __str__(self) -> str:
+        """Return a human-readable representation of the nonce."""
+        return f"ECPNonce(value={self.value[:8]}..., used={self.used})"
+
     def is_valid(self) -> bool:
         """Check whether this nonce can still be used for authentication.
 
         Returns:
             True if the nonce has not been used and has not exceeded the
             configured lifetime (``NONCE_LIFETIME`` Django setting).
+
         """
         nonce_age = timezone.now() - self.created_at
-        return (not self.used) and (
-            nonce_age.total_seconds() < conf.get_nonce_lifetime().total_seconds()
-        )
+        return (not self.used) and (nonce_age.total_seconds() < conf.get_nonce_lifetime().total_seconds())
 
     def consume(self) -> None:
         """Mark the nonce as used, preventing any future authentication with it."""
@@ -54,3 +59,7 @@ class ECPCertificate(models.Model):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
     certificate_pem = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self) -> str:
+        """Return a human-readable representation of the certificate."""
+        return f"ECPCertificate(user={self.user_id})"

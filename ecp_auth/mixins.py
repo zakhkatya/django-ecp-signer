@@ -1,11 +1,11 @@
-from django.contrib.auth import login
 from django.contrib.auth import authenticate as django_authenticate
+from django.contrib.auth import login
 from django.http import HttpResponse
 from django.views.generic.edit import FormView
 
-from .models import ECPCertificate
 from .backends import ECPAuthenticationBackend
 from .generator import generate_key_and_certificate, private_key_to_pem
+from .models import ECPCertificate
 
 
 class ECPGenerateMixin(FormView):
@@ -23,7 +23,7 @@ class ECPGenerateMixin(FormView):
         class RegisterView(ECPGenerateMixin, CreateView):
             model = User
             form_class = UserCreationForm
-            success_url = '/keys/'
+            success_url = "/keys/"
     """
 
     def form_valid(self, response: HttpResponse) -> HttpResponse:
@@ -38,6 +38,7 @@ class ECPGenerateMixin(FormView):
 
         Returns:
             The HTTP response returned by the parent ``form_valid`` (redirect).
+
         """
         user = response.instance
 
@@ -45,11 +46,11 @@ class ECPGenerateMixin(FormView):
 
         ECPCertificate.objects.update_or_create(
             user=user,
-            defaults={'certificate_pem': cert_pem.decode()},
+            defaults={"certificate_pem": cert_pem.decode()},
         )
 
-        self.request.session['ecp_key_pem'] = private_key_to_pem(private_key)
-        self.request.session['ecp_cert_pem'] = cert_pem.decode()
+        self.request.session["ecp_key_pem"] = private_key_to_pem(private_key)
+        self.request.session["ecp_cert_pem"] = cert_pem.decode()
 
         return super().form_valid(response)
 
@@ -74,8 +75,8 @@ class ECPLoginMixin(FormView):
 
         class LoginView(ECPLoginMixin, FormView):
             form_class = ECPLoginForm
-            success_url = '/dashboard/'
-            template_name = 'login.html'
+            success_url = "/dashboard/"
+            template_name = "login.html"
     """
 
     def form_valid(self, form: object) -> HttpResponse:
@@ -87,11 +88,12 @@ class ECPLoginMixin(FormView):
         Returns:
             Redirect to ``success_url`` on success, or re-rendered form with
             an error on failure.
+
         """
-        username: str | None = form.cleaned_data.get('username')
-        password: str | None = form.cleaned_data.get('password')
-        signature: bytes | None = form.cleaned_data.get('signature')
-        nonce_id: int | None = form.cleaned_data.get('nonce_id')
+        username: str | None = form.cleaned_data.get("username")
+        password: str | None = form.cleaned_data.get("password")
+        signature: bytes | None = form.cleaned_data.get("signature")
+        nonce_id: int | None = form.cleaned_data.get("nonce_id")
 
         # Step 1: standard password check
         user = django_authenticate(request=self.request, username=username, password=password)
@@ -110,5 +112,5 @@ class ECPLoginMixin(FormView):
             form.add_error(None, "Issue with certificate or signature")
             return self.form_invalid(form)
 
-        login(self.request, user, backend='django.contrib.auth.backends.ModelBackend')
+        login(self.request, user, backend="django.contrib.auth.backends.ModelBackend")
         return super().form_valid(form)
