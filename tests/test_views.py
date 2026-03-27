@@ -1,9 +1,10 @@
 import json
 
+from django.core.cache import cache
 from django.test import RequestFactory, TestCase
 
 from ecp_auth.models import ECPNonce
-from ecp_auth.views import ChallengeView, KeyDisplayView
+from ecp_auth.views import ChallengeView, KeyDisplayView, _CHALLENGE_RATE_LIMIT
 
 FAKE_KEY_PEM = "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n"
 FAKE_CERT_PEM = "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n"
@@ -14,6 +15,7 @@ class TestChallengeView(TestCase):
     def setUp(self):
         self.view = ChallengeView.as_view()
         self.factory = RequestFactory()
+        cache.clear()
 
     def test_challenge_returns_nonce_and_id(self):
         response = self.view(self.factory.get("/ecp/challenge/"))
@@ -25,6 +27,12 @@ class TestChallengeView(TestCase):
     def test_challenge_creates_nonce_in_db(self):
         self.view(self.factory.get("/ecp/challenge/"))
         self.assertEqual(ECPNonce.objects.count(), 1)
+
+    def test_rate_limit_returns_429(self):
+        for _ in range(_CHALLENGE_RATE_LIMIT):
+            self.view(self.factory.get("/ecp/challenge/"))
+        response = self.view(self.factory.get("/ecp/challenge/"))
+        self.assertEqual(response.status_code, 429)
 
 
 class TestKeyDisplayView(TestCase):

@@ -1,13 +1,24 @@
+from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.views import View
 
 from .models import ECPNonce
+
+_CHALLENGE_RATE_LIMIT = 10   # max requests
+_CHALLENGE_RATE_WINDOW = 60  # seconds
 
 
 class ChallengeView(View):
     """GET /ecp/challenge/ — issue a fresh nonce to the client."""
 
     def get(self, request):
+        ip = request.META.get("REMOTE_ADDR", "unknown")
+        key = f"ecp_challenge:{ip}"
+
+        if not cache.add(key, 1, timeout=_CHALLENGE_RATE_WINDOW):
+            if cache.incr(key) > _CHALLENGE_RATE_LIMIT:
+                return HttpResponse(status=429)
+
         nonce = ECPNonce.objects.create()
         return JsonResponse({"nonce": nonce.value, "nonce_id": nonce.pk})
 

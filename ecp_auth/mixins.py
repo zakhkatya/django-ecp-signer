@@ -10,7 +10,7 @@ from .generator import generate_key_and_certificate, private_key_to_pem
 class ECPGenerateMixin(FormView):
 
     def form_valid(self, form):
-        user = self.request.user
+        user = form.instance
 
         private_key, cert_pem = generate_key_and_certificate(user.username)
 
