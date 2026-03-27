@@ -2,6 +2,7 @@ from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import hashes
 from cryptography.exceptions import InvalidSignature
+
 from .exceptions import InvalidSignatureError, InvalidCertificateError
 
 
@@ -14,19 +15,21 @@ class SignatureValidator:
         signature: bytes,
         cert_pem: bytes,
     ) -> bool:
-        """
-        Verifies that signature was created by the private key
-        corresponding to the public key in the certificate.
+        """Verify that ``signature`` was produced by the private key in ``cert_pem``.
 
         Args:
-            data: Original data that was signed (nonce bytes).
-            signature: DER-encoded signature bytes.
-            cert_pem: PEM-encoded X.509 certificate.
+            data: The original data that was signed (e.g. nonce bytes).
+            signature: DER-encoded ECDSA signature bytes.
+            cert_pem: PEM-encoded X.509 certificate containing the public key.
+
         Returns:
-            True if signature is valid.
+            True if the signature is valid.
+
         Raises:
-            InvalidSignatureError: If verification fails.
-            InvalidCertificateError: If certificate format is wrong.
+            InvalidCertificateError: If the certificate cannot be loaded or
+                does not contain an ECDSA public key.
+            InvalidSignatureError: If signature verification fails or the
+                signature bytes are malformed.
         """
         try:
             cert = x509.load_pem_x509_certificate(cert_pem)
@@ -35,7 +38,6 @@ class SignatureValidator:
 
         public_key = cert.public_key()
 
-        # Reject RSA or other key types — only ECDSA is supported.
         if not isinstance(public_key, ec.EllipticCurvePublicKey):
             raise InvalidCertificateError("Certificate must contain ECDSA public key")
 
@@ -45,6 +47,4 @@ class SignatureValidator:
         except InvalidSignature:
             raise InvalidSignatureError("Signature verification failed")
         except Exception as e:
-            # Catches malformed DER encoding and other low-level errors that
-            # don't surface as InvalidSignature but still mean bad input.
-            raise InvalidSignatureError(f"Unexpected error: {e}")
+            raise InvalidSignatureError(f"Unexpected error during verification: {e}")

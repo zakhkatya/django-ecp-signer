@@ -1,11 +1,19 @@
+import datetime
 from cryptography import x509
 from cryptography.x509.oid import NameOID
-import datetime
+
 from .exceptions import InvalidCertificateError
 
 
 class CertificateParser:
-    """Parses X.509 certificate and extracts user identity data."""
+    """Parses a PEM-encoded X.509 certificate and exposes its metadata.
+
+    Args:
+        cert_pem: PEM-encoded certificate bytes.
+
+    Raises:
+        InvalidCertificateError: If the certificate cannot be parsed.
+    """
 
     def __init__(self, cert_pem: bytes) -> None:
         try:
@@ -14,24 +22,44 @@ class CertificateParser:
             raise InvalidCertificateError(f"Cannot parse certificate: {e}")
 
     def is_expired(self) -> bool:
-        """Returns True if certificate validity period has passed."""
+        """Check whether the certificate's validity period has passed.
+
+        Returns:
+            True if the current UTC time is past ``not_valid_after``.
+        """
         now = datetime.datetime.now(datetime.timezone.utc)
         return now > self._cert.not_valid_after_utc
 
     def get_common_name(self) -> str:
-        """Returns full name from certificate CN field."""
+        """Extract the Common Name (CN) from the certificate subject.
+
+        Returns:
+            The CN field value as a string.
+
+        Raises:
+            InvalidCertificateError: If the CN field is not present.
+        """
         attrs = self._cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
         if not attrs:
             raise InvalidCertificateError("Common name not found")
         return str(attrs[0].value)
 
     def get_organization(self) -> str | None:
-        """Returns organization name if present."""
+        """Extract the Organization (O) from the certificate subject.
+
+        Returns:
+            The organization name, or None if the field is absent.
+        """
         attrs = self._cert.subject.get_attributes_for_oid(NameOID.ORGANIZATION_NAME)
         return str(attrs[0].value) if attrs else None
 
     def to_dict(self) -> dict:
-        """Returns parsed certificate data as dictionary."""
+        """Return parsed certificate metadata as a dictionary.
+
+        Returns:
+            A dict with keys ``common_name``, ``organization``,
+            ``not_valid_before``, and ``not_valid_after`` (ISO 8601 strings).
+        """
         return {
             "common_name": self.get_common_name(),
             "organization": self.get_organization(),
