@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "django-ecp-signer"
-version = "0.1.7"
+version = "0.1.9"
 description = "Django authentication via ECDSA digital signatures and PKCS#12 certificates"
 readme = "README.md"
 license = { file = "LICENSE" }
