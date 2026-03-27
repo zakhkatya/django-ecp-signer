@@ -8,6 +8,7 @@ from .models import ECPCertificate, ECPNonce
 
 _CHALLENGE_RATE_LIMIT = 10  # max requests per window
 _CHALLENGE_RATE_WINDOW = 60  # window size in seconds
+_MAX_CERT_SIZE = 10_000  # bytes; a PEM certificate is never larger than a few KB
 
 
 def _get_client_ip(request: HttpRequest) -> str:
@@ -48,8 +49,15 @@ class ChallengeView(View):
         ip = _get_client_ip(request)
         key = f"ecp_challenge:{ip}"
 
-        if not cache.add(key, 1, timeout=_CHALLENGE_RATE_WINDOW) and cache.incr(key) > _CHALLENGE_RATE_LIMIT:
-            return HttpResponse(status=429)
+        if not cache.add(key, 1, timeout=_CHALLENGE_RATE_WINDOW):
+            try:
+                count = cache.incr(key)
+            except ValueError:
+                # Key expired between add() and incr() — treat as a fresh window.
+                cache.set(key, 1, timeout=_CHALLENGE_RATE_WINDOW)
+                count = 1
+            if count > _CHALLENGE_RATE_LIMIT:
+                return HttpResponse(status=429)
 
         nonce = ECPNonce.objects.create()
         return JsonResponse({"nonce": nonce.value, "nonce_id": nonce.pk})
@@ -154,6 +162,9 @@ class CertificateUploadView(View):
         cert_file = request.FILES.get("certificate")
         if cert_file is None:
             return JsonResponse({"error": "No certificate file provided"}, status=400)
+
+        if cert_file.size > _MAX_CERT_SIZE:
+            return JsonResponse({"error": "Certificate file is too large"}, status=400)
 
         cert_bytes = cert_file.read()
 

@@ -51,7 +51,7 @@ class ECPAuthenticationBackend(ModelBackend):
             any verification step fails.
 
         """
-        if not (signature and username and nonce_id):
+        if signature is None or username is None or nonce_id is None:
             return None
         try:
             nonce = self._get_nonce(nonce_id)
@@ -116,6 +116,8 @@ class ECPAuthenticationBackend(ModelBackend):
         try:
             return User.objects.get(username=username)
         except User.DoesNotExist:
+            # Intentionally reuses InvalidCertificateError to avoid leaking
+            # whether a username exists in the system.
             raise InvalidCertificateError(f"No user found: {username}")
 
     def _get_certificate(self, user: Any) -> ECPCertificate:

@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.contrib.auth import authenticate as django_authenticate
 from django.contrib.auth import login
 from django.http import HttpResponse
@@ -31,7 +33,7 @@ class ECPGenerateMixin(FormView):
             success_url = "/keys/"
     """
 
-    def form_valid(self, response: HttpResponse) -> HttpResponse:
+    def form_valid(self, form: Any) -> HttpResponse:
         """Generate a key pair for the new user and store PEM text in session.
 
         Called automatically after the form is validated and the user is saved.
@@ -43,15 +45,19 @@ class ECPGenerateMixin(FormView):
         ``BestAvailableEncryption``).
 
         Args:
-            response: The form instance with a populated ``.instance`` attribute.
+            form: The validated form with a populated ``.instance`` attribute.
 
         Returns:
             The HTTP response returned by the parent ``form_valid`` (redirect).
 
         """
-        user = response.instance
-        key_password: str | None = response.cleaned_data.get("key_password")
+        key_password: str | None = form.cleaned_data.get("key_password")
 
+        # Call super() first so that CreateView saves the user and form.instance
+        # gets a primary key before we create the related ECPCertificate.
+        response = super().form_valid(form)
+
+        user = form.instance
         private_key, cert_pem = generate_key_and_certificate(user.username)
 
         ECPCertificate.objects.update_or_create(
@@ -62,7 +68,7 @@ class ECPGenerateMixin(FormView):
         self.request.session["ecp_key_pem"] = private_key_to_pem(private_key, key_password)
         self.request.session["ecp_cert_pem"] = cert_pem.decode()
 
-        return super().form_valid(response)
+        return response
 
 
 class ECPLoginMixin(FormView):
@@ -89,7 +95,7 @@ class ECPLoginMixin(FormView):
             template_name = "login.html"
     """
 
-    def form_valid(self, form: object) -> HttpResponse:
+    def form_valid(self, form: Any) -> HttpResponse:
         """Authenticate the user via password and ECDSA signature.
 
         Args:
@@ -122,5 +128,7 @@ class ECPLoginMixin(FormView):
             form.add_error(None, "Issue with certificate or signature")
             return self.form_invalid(form)
 
-        login(self.request, user, backend="django.contrib.auth.backends.ModelBackend")
+        # user.backend is set by django_authenticate() above, so no need to
+        # hard-code a specific backend here.
+        login(self.request, user)
         return super().form_valid(form)

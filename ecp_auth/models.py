@@ -46,7 +46,7 @@ class ECPNonce(models.Model):
     def consume(self) -> None:
         """Mark the nonce as used, preventing any future authentication with it."""
         self.used = True
-        self.save()
+        self.save(update_fields=["used"])
 
 
 class ECPCertificate(models.Model):
@@ -59,6 +59,7 @@ class ECPCertificate(models.Model):
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
     certificate_pem = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self) -> str:
         """Return a human-readable representation of the certificate."""
