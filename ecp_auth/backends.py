@@ -3,6 +3,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import ModelBackend
+from django.db import transaction
 from django.http import HttpRequest
 
 from .certificate import CertificateParser
@@ -59,7 +60,6 @@ class ECPAuthenticationBackend(ModelBackend):
             cert_pem = cert.certificate_pem.encode()
             self._check_expired(cert_pem)
             self._verify_signature(nonce, signature, cert_pem)
-            nonce.consume()
         except (
             NonceNotFoundError,
             NonceExpiredError,
@@ -73,25 +73,31 @@ class ECPAuthenticationBackend(ModelBackend):
             return user
 
     def _get_nonce(self, nonce_id: int) -> ECPNonce:
-        """Fetch and validate a nonce by primary key.
+        """Fetch, validate, and atomically consume a nonce by primary key.
+
+        The nonce is consumed inside a ``SELECT FOR UPDATE`` transaction so
+        that two concurrent requests cannot both use the same nonce (replay
+        attack prevention).
 
         Args:
             nonce_id: Primary key of the nonce.
 
         Returns:
-            A valid, unused ``ECPNonce`` instance.
+            The consumed ``ECPNonce`` instance (``used=True``).
 
         Raises:
             NonceNotFoundError: If no nonce with the given ID exists.
             NonceExpiredError: If the nonce has already been used or has expired.
 
         """
-        try:
-            nonce = ECPNonce.objects.get(pk=nonce_id)
-        except ECPNonce.DoesNotExist:
-            raise NonceNotFoundError(f"Nonce not found: {nonce_id}")
-        if not nonce.is_valid():
-            raise NonceExpiredError("Nonce is expired or already used")
+        with transaction.atomic():
+            try:
+                nonce = ECPNonce.objects.select_for_update().get(pk=nonce_id)
+            except ECPNonce.DoesNotExist:
+                raise NonceNotFoundError(f"Nonce not found: {nonce_id}")
+            if not nonce.is_valid():
+                raise NonceExpiredError("Nonce is expired or already used")
+            nonce.consume()
         return nonce
 
     def _get_user(self, username: str) -> Any:

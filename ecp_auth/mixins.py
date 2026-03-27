@@ -18,11 +18,16 @@ class ECPGenerateMixin(FormView):
     The mixin reads the user from ``form.instance``, so it must be used with a
     ``ModelForm`` whose instance is the newly created user.
 
+    If the registration form contains a ``key_password`` field in
+    ``cleaned_data``, the private key will be encrypted with that passphrase
+    before being stored in the session. The client must supply the same
+    passphrase when decrypting the key for signing.
+
     Example::
 
         class RegisterView(ECPGenerateMixin, CreateView):
             model = User
-            form_class = UserCreationForm
+            form_class = UserCreationForm  # add key_password field to this form
             success_url = "/keys/"
     """
 
@@ -33,6 +38,10 @@ class ECPGenerateMixin(FormView):
         Generates an ECDSA P-256 key pair, saves the public certificate to the
         database, and stores both PEM strings in ``request.session``.
 
+        If ``key_password`` is present in ``form.cleaned_data`` the private key
+        PEM is encrypted with that passphrase (AES-256-CBC via
+        ``BestAvailableEncryption``).
+
         Args:
             response: The form instance with a populated ``.instance`` attribute.
 
@@ -41,6 +50,7 @@ class ECPGenerateMixin(FormView):
 
         """
         user = response.instance
+        key_password: str | None = response.cleaned_data.get("key_password")
 
         private_key, cert_pem = generate_key_and_certificate(user.username)
 
@@ -49,7 +59,7 @@ class ECPGenerateMixin(FormView):
             defaults={"certificate_pem": cert_pem.decode()},
         )
 
-        self.request.session["ecp_key_pem"] = private_key_to_pem(private_key)
+        self.request.session["ecp_key_pem"] = private_key_to_pem(private_key, key_password)
         self.request.session["ecp_cert_pem"] = cert_pem.decode()
 
         return super().form_valid(response)

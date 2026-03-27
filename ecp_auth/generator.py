@@ -53,18 +53,31 @@ def generate_key_and_certificate(
     return key, cert_pem
 
 
-def private_key_to_pem(private_key: ec.EllipticCurvePrivateKey) -> str:
-    """Serialize a private key to an unencrypted PKCS#8 PEM string.
+def private_key_to_pem(
+    private_key: ec.EllipticCurvePrivateKey,
+    password: str | None = None,
+) -> str:
+    """Serialize a private key to a PKCS#8 PEM string.
+
+    When ``password`` is provided the key is encrypted with AES-256-CBC
+    (``BestAvailableEncryption``), producing a ``-----BEGIN ENCRYPTED PRIVATE KEY-----``
+    block. Without a password the key is stored in plaintext.
 
     Args:
         private_key: The ECDSA private key to serialize.
+        password: Optional passphrase used to encrypt the private key.
+            Must be provided by the user during registration and kept secret.
 
     Returns:
-        A PEM-encoded string beginning with ``-----BEGIN PRIVATE KEY-----``.
+        A PEM-encoded string. Encrypted when ``password`` is given, plaintext
+        otherwise.
 
     """
+    encryption: serialization.KeySerializationEncryption = (
+        serialization.BestAvailableEncryption(password.encode()) if password else serialization.NoEncryption()
+    )
     return private_key.private_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
+        encryption_algorithm=encryption,
     ).decode()

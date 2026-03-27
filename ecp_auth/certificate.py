@@ -33,14 +33,15 @@ class CertificateParser:
             raise InvalidCertificateError(f"Cannot parse certificate: {e}")
 
     def is_expired(self) -> bool:
-        """Check whether the certificate's validity period has passed.
+        """Check whether the certificate is outside its validity window.
 
         Returns:
-            True if the current UTC time is past ``not_valid_after``.
+            True if the current UTC time is before ``not_valid_before``
+            or after ``not_valid_after``.
 
         """
         now = datetime.datetime.now(datetime.UTC)
-        return now > self._cert.not_valid_after_utc
+        return now < self._cert.not_valid_before_utc or now > self._cert.not_valid_after_utc
 
     def get_common_name(self) -> str:
         """Extract the Common Name (CN) from the certificate subject.

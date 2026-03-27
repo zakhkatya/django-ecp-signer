@@ -6,11 +6,13 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 
 
-def make_cert_and_key(common_name: str = "testuser", expired: bool = False):
+def make_cert_and_key(common_name: str = "testuser", expired: bool = False, not_yet_valid: bool = False):
     """Generate a self-signed EC certificate for testing.
 
     Returns a (private_key, cert_pem_bytes) tuple. When expired=True, the
     validity window is placed entirely in the past so expiry checks trigger.
+    When not_yet_valid=True, the validity window is placed entirely in the
+    future so the not_valid_before check triggers.
     """
     key = ec.generate_private_key(ec.SECP256R1())
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -18,6 +20,9 @@ def make_cert_and_key(common_name: str = "testuser", expired: bool = False):
     if expired:
         not_before = now - datetime.timedelta(days=730)
         not_after = now - datetime.timedelta(days=365)
+    elif not_yet_valid:
+        not_before = now + datetime.timedelta(days=1)
+        not_after = now + datetime.timedelta(days=366)
     else:
         not_before = now
         not_after = now + datetime.timedelta(days=365)

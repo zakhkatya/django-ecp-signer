@@ -14,6 +14,11 @@ def test_expired():
     assert CertificateParser(cert_pem).is_expired() is True
 
 
+def test_not_yet_valid():
+    _, cert_pem = make_cert_and_key(not_yet_valid=True)
+    assert CertificateParser(cert_pem).is_expired() is True
+
+
 def test_common_name():
     _, cert_pem = make_cert_and_key(common_name="john_doe")
     assert CertificateParser(cert_pem).get_common_name() == "john_doe"
