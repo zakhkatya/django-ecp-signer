@@ -21,17 +21,18 @@ User = get_user_model()
 
 class ECPAuthenticationBackend(ModelBackend):
 
-    def authenticate(self, request, signature=None, taxpayer_id=None, nonce_id=None, **kwargs):
-        if not (signature and taxpayer_id and nonce_id):
+    def authenticate(self, request, signature=None, username=None, nonce_id=None, **kwargs):
+        if not (signature and username and nonce_id):
             return None
         try:
             nonce = self._get_nonce(nonce_id)
-            cert = self._get_certificate(taxpayer_id)
+            user = self._get_user(username)
+            cert = self._get_certificate(user)
             cert_pem = cert.certificate_pem.encode()
             self._check_expired(cert_pem)
             self._verify_signature(nonce, signature, cert_pem)
             nonce.consume()
-            return self._get_user(cert)
+            return user
         except (
             NonceNotFoundError,
             NonceExpiredError,
@@ -39,7 +40,7 @@ class ECPAuthenticationBackend(ModelBackend):
             InvalidCertificateError,
             CertificateExpiredError,
         ) as exc:
-            logger.warning("ECP authentication failed for taxpayer_id=%s: %s", taxpayer_id, exc)
+            logger.warning("ECP authentication failed for username=%s: %s", username, exc)
             return None
 
     def _get_nonce(self, nonce_id: int) -> ECPNonce:
@@ -51,13 +52,17 @@ class ECPAuthenticationBackend(ModelBackend):
             raise NonceExpiredError("Nonce is expired or already used")
         return nonce
 
-    def _get_certificate(self, taxpayer_id: str) -> ECPCertificate:
+    def _get_user(self, username: str):
         try:
-            return ECPCertificate.objects.get(taxpayer_id=taxpayer_id)
+            return User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise InvalidCertificateError(f"No user found: {username}")
+
+    def _get_certificate(self, user) -> ECPCertificate:
+        try:
+            return ECPCertificate.objects.get(user=user)
         except ECPCertificate.DoesNotExist:
-            raise InvalidCertificateError(
-                f"No certificate registered for taxpayer_id: {taxpayer_id}"
-            )
+            raise InvalidCertificateError(f"No certificate for user: {user.username}")
 
     def _verify_signature(self, nonce: ECPNonce, signature: bytes, cert_pem: bytes) -> None:
         SignatureValidator().verify(nonce.value.encode(), signature, cert_pem)
@@ -65,6 +70,3 @@ class ECPAuthenticationBackend(ModelBackend):
     def _check_expired(self, cert_pem: bytes) -> None:
         if CertificateParser(cert_pem).is_expired():
             raise CertificateExpiredError("Certificate is expired")
-
-    def _get_user(self, cert: ECPCertificate):
-        return cert.user

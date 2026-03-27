@@ -29,149 +29,122 @@ def nonce(db):
 
 @pytest.fixture
 def registered_cert(db, user):
-    """Creates a valid ECPCertificate in the DB, returns (private_key, taxpayer_id)."""
-    key, cert_pem = make_cert_and_key(taxpayer_id="1234567890")
-    ECPCertificate.objects.create(
-        user=user,
-        taxpayer_id="1234567890",
-        certificate_pem=cert_pem.decode(),
-    )
-    return key, "1234567890"
+    """Creates a valid ECPCertificate in the DB, returns private_key."""
+    key, cert_pem = make_cert_and_key(common_name=user.username)
+    ECPCertificate.objects.create(user=user, certificate_pem=cert_pem.decode())
+    return key
 
 
 @pytest.mark.django_db
 class TestECPAuthenticationBackend:
 
     def test_successful_authentication(self, user, nonce, registered_cert):
-        key, taxpayer_id = registered_cert
-        signature = sign_nonce(key, nonce.value)
+        signature = sign_nonce(registered_cert, nonce.value)
         result = ECPAuthenticationBackend().authenticate(
             request=None,
             signature=signature,
-            taxpayer_id=taxpayer_id,
+            username=user.username,
             nonce_id=nonce.pk,
         )
         assert result == user
 
     def test_nonce_consumed_after_auth(self, user, nonce, registered_cert):
-        key, taxpayer_id = registered_cert
-        signature = sign_nonce(key, nonce.value)
+        signature = sign_nonce(registered_cert, nonce.value)
         ECPAuthenticationBackend().authenticate(
             request=None,
-            signature=signature,
-            taxpayer_id=taxpayer_id,
+            signature=sign_nonce(registered_cert, nonce.value),
+            username=user.username,
             nonce_id=nonce.pk,
         )
         nonce.refresh_from_db()
         assert nonce.used is True
 
-    def test_missing_signature_returns_none(self, nonce):
+    def test_missing_signature_returns_none(self, nonce, user):
         result = ECPAuthenticationBackend().authenticate(
-            request=None,
-            signature=None,
-            taxpayer_id="1234567890",
-            nonce_id=nonce.pk,
+            request=None, signature=None, username=user.username, nonce_id=nonce.pk
         )
         assert result is None
 
-    def test_missing_taxpayer_id_returns_none(self, nonce):
+    def test_missing_username_returns_none(self, nonce):
         result = ECPAuthenticationBackend().authenticate(
-            request=None,
-            signature=b"sig",
-            taxpayer_id=None,
-            nonce_id=nonce.pk,
+            request=None, signature=b"sig", username=None, nonce_id=nonce.pk
         )
         assert result is None
 
-    def test_missing_nonce_id_returns_none(self, db):
+    def test_missing_nonce_id_returns_none(self, user):
         result = ECPAuthenticationBackend().authenticate(
-            request=None,
-            signature=b"sig",
-            taxpayer_id="1234567890",
-            nonce_id=None,
+            request=None, signature=b"sig", username=user.username, nonce_id=None
         )
         assert result is None
 
-    def test_nonce_not_found_returns_none(self, db):
+    def test_nonce_not_found_returns_none(self, db, user):
         result = ECPAuthenticationBackend().authenticate(
-            request=None,
-            signature=b"sig",
-            taxpayer_id="1234567890",
-            nonce_id=99999,
+            request=None, signature=b"sig", username=user.username, nonce_id=99999
         )
         assert result is None
 
     def test_expired_nonce_returns_none(self, user, registered_cert, db):
-        key, taxpayer_id = registered_cert
         nonce = ECPNonce.objects.create()
         ECPNonce.objects.filter(pk=nonce.pk).update(
             created_at=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=1)
         )
         nonce.refresh_from_db()
-        signature = sign_nonce(key, nonce.value)
         result = ECPAuthenticationBackend().authenticate(
             request=None,
-            signature=signature,
-            taxpayer_id=taxpayer_id,
+            signature=sign_nonce(registered_cert, nonce.value),
+            username=user.username,
             nonce_id=nonce.pk,
         )
         assert result is None
 
     def test_used_nonce_returns_none(self, user, nonce, registered_cert):
-        key, taxpayer_id = registered_cert
         nonce.consume()
-        signature = sign_nonce(key, nonce.value)
         result = ECPAuthenticationBackend().authenticate(
             request=None,
-            signature=signature,
-            taxpayer_id=taxpayer_id,
+            signature=sign_nonce(registered_cert, nonce.value),
+            username=user.username,
             nonce_id=nonce.pk,
         )
         assert result is None
 
-    def test_certificate_not_found_returns_none(self, nonce, db):
+    def test_user_not_found_returns_none(self, nonce, db):
         result = ECPAuthenticationBackend().authenticate(
-            request=None,
-            signature=b"sig",
-            taxpayer_id="0000000000",
-            nonce_id=nonce.pk,
+            request=None, signature=b"sig", username="nobody", nonce_id=nonce.pk
+        )
+        assert result is None
+
+    def test_certificate_not_found_returns_none(self, user, nonce):
+        result = ECPAuthenticationBackend().authenticate(
+            request=None, signature=b"sig", username=user.username, nonce_id=nonce.pk
         )
         assert result is None
 
     def test_expired_certificate_returns_none(self, user, nonce, db):
         key, cert_pem = make_cert_and_key(expired=True)
-        ECPCertificate.objects.create(
-            user=user,
-            taxpayer_id="1234567890",
-            certificate_pem=cert_pem.decode(),
-        )
-        signature = sign_nonce(key, nonce.value)
+        ECPCertificate.objects.create(user=user, certificate_pem=cert_pem.decode())
         result = ECPAuthenticationBackend().authenticate(
             request=None,
-            signature=signature,
-            taxpayer_id="1234567890",
+            signature=sign_nonce(key, nonce.value),
+            username=user.username,
             nonce_id=nonce.pk,
         )
         assert result is None
 
     def test_invalid_signature_bytes_returns_none(self, user, nonce, registered_cert):
-        _, taxpayer_id = registered_cert
         result = ECPAuthenticationBackend().authenticate(
             request=None,
             signature=b"not_a_valid_signature",
-            taxpayer_id=taxpayer_id,
+            username=user.username,
             nonce_id=nonce.pk,
         )
         assert result is None
 
     def test_wrong_key_returns_none(self, user, nonce, registered_cert):
-        _, taxpayer_id = registered_cert
-        wrong_key, _ = make_cert_and_key(taxpayer_id="9999999999")
-        signature = sign_nonce(wrong_key, nonce.value)
+        wrong_key, _ = make_cert_and_key(common_name="other")
         result = ECPAuthenticationBackend().authenticate(
             request=None,
-            signature=signature,
-            taxpayer_id=taxpayer_id,
+            signature=sign_nonce(wrong_key, nonce.value),
+            username=user.username,
             nonce_id=nonce.pk,
         )
         assert result is None

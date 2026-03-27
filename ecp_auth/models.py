@@ -33,6 +33,5 @@ class ECPCertificate(models.Model):
     """This model represents ecp certificate."""
 
     user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
-    taxpayer_id = models.CharField(max_length=10, unique=True)
     certificate_pem = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)

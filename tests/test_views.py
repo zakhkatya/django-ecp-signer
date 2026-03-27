@@ -1,10 +1,12 @@
-import base64
 import json
 
 from django.test import RequestFactory, TestCase
 
 from ecp_auth.models import ECPNonce
-from ecp_auth.views import CertificateDownloadView, ChallengeView
+from ecp_auth.views import ChallengeView, KeyDisplayView
+
+FAKE_KEY_PEM = "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n"
+FAKE_CERT_PEM = "-----BEGIN CERTIFICATE-----\nfake\n-----END CERTIFICATE-----\n"
 
 
 class TestChallengeView(TestCase):
@@ -25,32 +27,32 @@ class TestChallengeView(TestCase):
         self.assertEqual(ECPNonce.objects.count(), 1)
 
 
-class TestCertificateDownloadView(TestCase):
+class TestKeyDisplayView(TestCase):
 
     def setUp(self):
-        self.view = CertificateDownloadView.as_view()
+        self.view = KeyDisplayView.as_view()
         self.factory = RequestFactory()
 
     def _request(self, session=None):
-        request = self.factory.get("/ecp/certificate/download/")
+        request = self.factory.get("/ecp/keys/")
         request.session = session if session is not None else {}
         return request
 
-    def test_download_returns_p12_file(self):
-        p12_bytes = b"fake-p12-content"
-        request = self._request({"ecp_p12": base64.b64encode(p12_bytes).decode()})
-        response = self.view(request)
+    def test_returns_pem_json(self):
+        session = {"ecp_key_pem": FAKE_KEY_PEM, "ecp_cert_pem": FAKE_CERT_PEM}
+        response = self.view(self._request(session))
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response["Content-Type"], "application/x-pkcs12")
-        self.assertIn("user.p12", response["Content-Disposition"])
-        self.assertEqual(response.content, p12_bytes)
+        data = json.loads(response.content)
+        self.assertEqual(data["private_key"], FAKE_KEY_PEM)
+        self.assertEqual(data["certificate"], FAKE_CERT_PEM)
 
-    def test_download_clears_session(self):
-        session = {"ecp_p12": base64.b64encode(b"fake").decode()}
+    def test_clears_session_after_serving(self):
+        session = {"ecp_key_pem": FAKE_KEY_PEM, "ecp_cert_pem": FAKE_CERT_PEM}
         request = self._request(session)
         self.view(request)
-        self.assertNotIn("ecp_p12", request.session)
+        self.assertNotIn("ecp_key_pem", request.session)
+        self.assertNotIn("ecp_cert_pem", request.session)
 
-    def test_download_without_session_404(self):
+    def test_returns_404_when_no_session(self):
         response = self.view(self._request())
         self.assertEqual(response.status_code, 404)

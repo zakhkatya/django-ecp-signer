@@ -1,7 +1,7 @@
 from django.urls import path
-from .views import ChallengeView, CertificateDownloadView
+from .views import ChallengeView, KeyDisplayView
 
 urlpatterns = [
     path('challenge/', ChallengeView.as_view(), name='challenge'),
-    path('certificate/download/', CertificateDownloadView.as_view(), name='download'),
+    path('keys/', KeyDisplayView.as_view(), name='keys'),
 ]
