@@ -1,9 +1,9 @@
 # django-ecp-auth
 
-Two-factor authentication for Django using digital signatures. Plugs into any existing project via two mixins — no replacement of existing auth logic required.
+Two-factor authentication for Django using ECDSA digital signatures. Plugs into any existing project via two mixins — no replacement of existing auth logic required.
 
 ```bash
-pip install django-ecp-auth
+pip install django-ecp-signer
 ```
 
 ---
@@ -14,9 +14,9 @@ pip install django-ecp-auth
 
 | Without package | With package |
 |---|---|
-| username + password | username + password + `.p12` file |
+| username + password | username + password + private key |
 
-Upon registration, the server generates an ECDSA key pair and issues the user a `.p12` file. On every login, the user attaches the file — their browser signs a one-time server challenge with the private key, and the server verifies the signature against the stored public certificate.
+Upon registration, the server generates an ECDSA key pair and displays the private key as PEM text (like backup codes) — the user copies and saves it. On every login, JavaScript signs a one-time server challenge with that key, and the server verifies the signature against the stored public certificate.
 
 The private key **never leaves the user's machine after registration**. The server stores only the public certificate.
 
@@ -24,7 +24,7 @@ The private key **never leaves the user's machine after registration**. The serv
 
 ## Key concepts
 
-**Private key** — lives only in the user's `.p12` file. Used to sign the challenge. Never sent to the server.
+**Private key** — shown once after registration as PEM text. Used to sign the challenge. Never sent to the server.
 
 **Public key** — embedded in the X.509 certificate stored in the database. Used to verify the signature.
 
@@ -32,40 +32,40 @@ The private key **never leaves the user's machine after registration**. The serv
 
 ---
 
-## Registration
+## Registration flow
 
-1. User submits the registration form — `username`, `password`, and `taxpayer_id` (10-digit Ukrainian tax ID / ІПН). The `taxpayer_id` field must be present in `form.cleaned_data` — add it to your registration form.
-2. The existing `RegisterView` creates the `User` object as usual.
+1. User submits the registration form — `username` and `password`.
+2. `CreateView` creates the `User` object as usual.
 3. `ECPGenerateMixin` runs automatically after `form_valid()`:
+   - Reads `user = form.instance` (the newly created user).
    - Generates an ECDSA P-256 key pair.
-   - Builds an X.509 certificate with `username` as the identity field.
+   - Builds a self-signed X.509 certificate valid for 365 days.
    - Saves **only the public certificate** to the database (`ECPCertificate`).
-   - Serializes the private key + certificate into a `.p12` file (no password).
-   - Stores the `.p12` bytes in the session. The private key is then discarded.
-4. User clicks "Download your key" — `user.p12` is served as a file attachment and removed from the session.
+   - Stores the private key and certificate PEM text in the session.
+4. Frontend calls `GET /ecp/keys/` — receives JSON with `private_key` and `certificate` PEM strings, then displays them for the user to copy. Session is cleared immediately after serving.
 
-After registration the server retains no private key — it exists only on the user's disk.
+After registration the server retains no private key — it exists only on the user's side.
 
 ---
 
-## Login
+## Login flow
 
-1. The login page automatically fetches a nonce from `GET /ecp/challenge/`.
-2. User fills in `username`, `password`, and attaches their `.p12` file.
-3. JavaScript reads the file, extracts the private key, and signs the nonce.
-4. The form submits `username`, `password`, `nonce_id`, `signature`, and `taxpayer_id`.
+1. The login page fetches a nonce from `GET /ecp/challenge/`.
+2. User fills in `username` and `password`, and provides their saved private key.
+3. JavaScript signs the nonce with the private key (ECDSA SHA-256).
+4. The form submits `username`, `password`, `nonce_id`, and `signature`.
 5. The server runs two checks in sequence:
-   - **Password check** — standard Django `authenticate()`. Fails fast if credentials are wrong.
-   - **Signature check** — fetches the certificate from the database (never from the client), verifies the ECDSA signature against the nonce, and checks that the certificate has not expired.
-6. On success: nonce is consumed (`used=True`), session is opened, user is redirected to `/dashboard/`.
+   - **Password check** — standard Django `authenticate(username, password)`. Fails fast if credentials are wrong.
+   - **Signature check** — looks up the user, fetches the certificate from the database (never from the client), verifies the ECDSA signature against the nonce, and checks that the certificate has not expired.
+6. On success: nonce is consumed (`used=True`), session is opened, user is redirected.
 
 ---
 
 ## What is stored where
 
-**User's disk** — `user.p12` containing the private key and certificate. Without this file, login is impossible.
+**User's side** — PEM text of the private key (copied during registration). Without it, login is impossible.
 
-**Database** — hashed password in `users_user`, public certificate in `ecp_auth_ecpcertificate`, one-time nonces in `ecp_auth_ecpnonce`. No private key is ever written to the database.
+**Database** — hashed password, public certificate in `ecp_auth_ecpcertificate`, one-time nonces in `ecp_auth_ecpnonce`. No private key is ever written to the database.
 
 ---
 
@@ -73,15 +73,14 @@ After registration the server retains no private key — it exists only on the u
 
 | Threat | Defense |
 |---|---|
-| Replay attack | Nonce is marked `used=True` after first use |
-| Forged signature | ECDSA verification fails |
-| Key mismatch (wrong `.p12`) | Server uses certificate from DB, not from client |
+| Replay attack | Nonce marked `used=True` after first use |
+| Forged signature | ECDSA verification fails without the real private key |
+| Stolen certificate | Server fetches cert from DB, not from client |
 | Expired certificate | `is_expired()` check on every login |
-| Stale nonce | Nonces expire after 300 seconds |
-| Password stolen, no `.p12` | Cannot produce a valid signature without the private key |
-| `.p12` stolen, no password | `authenticate()` rejects wrong credentials before signature is checked |
-
-> `.p12` files are not password-protected by default. For production deployments, encrypting the file with a separate passphrase is strongly recommended.
+| Stale nonce | Nonces expire after 5 minutes (configurable) |
+| Password stolen, no private key | Cannot produce a valid signature |
+| Private key stolen, no password | Password check rejects before signature is verified |
+| Nonce spam | Rate limit: 10 requests per minute per IP → 429 |
 
 ---
 
@@ -118,9 +117,20 @@ from ecp_auth.mixins import ECPGenerateMixin, ECPLoginMixin
 class RegisterView(ECPGenerateMixin, CreateView):
     ...
 
-class LoginView(ECPLoginMixin, DjangoLoginView):
+class LoginView(ECPLoginMixin, FormView):
     ...
 ```
+
+`ECPGenerateMixin` reads the user from `form.instance`, so it must be used with `CreateView` or any view whose form has a `.instance` attribute set to the created user.
+
+`ECPLoginMixin` expects the login form to have these fields in `cleaned_data`:
+
+| Field | Description |
+|---|---|
+| `username` | User's username |
+| `password` | User's password |
+| `signature` | DER-encoded ECDSA signature of the nonce (bytes) |
+| `nonce_id` | Primary key of the nonce returned by `/ecp/challenge/` |
 
 **4. Migrate**
 
@@ -134,8 +144,30 @@ python manage.py migrate
 
 | Method | URL | Description |
 |---|---|---|
-| GET | `/ecp/challenge/` | Returns a one-time nonce |
-| GET | `/ecp/certificate/download/` | Downloads the generated `user.p12` |
+| GET | `/ecp/challenge/` | Returns a one-time nonce. Rate limited to 10 req/min per IP. |
+| GET | `/ecp/keys/` | Returns `private_key` and `certificate` PEM text from session. One-time — clears session after serving. |
+
+### Challenge response
+
+```json
+{
+  "nonce": "3f8a1c...",
+  "nonce_id": 42
+}
+```
+
+Sign `nonce` with the private key and submit `nonce_id` with the login form.
+
+### Keys response
+
+```json
+{
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "certificate": "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----\n"
+}
+```
+
+Display both to the user as backup codes to copy and store.
 
 ---
 
