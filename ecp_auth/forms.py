@@ -1,4 +1,5 @@
 from django import forms
+from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import UserCreationForm
 
 
@@ -14,6 +15,7 @@ class ECPRegisterForm(UserCreationForm):
     class Meta(UserCreationForm.Meta):
         """Use the same model as UserCreationForm with a fixed set of fields."""
 
+        model = get_user_model()
         fields = ("username", "password1", "password2")
 
 
