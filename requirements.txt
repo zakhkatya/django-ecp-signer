@@ -3,5 +3,4 @@ cffi==2.0.0
 cryptography==46.0.6
 Django==6.0.3
 pycparser==3.0
-ruff==0.15.8
 sqlparse==0.5.5
