@@ -34,7 +34,7 @@ The private key **never leaves the user's machine after registration**. The serv
 
 ## Registration
 
-1. User submits the standard registration form — `username` and `password`.
+1. User submits the registration form — `username`, `password`, and `taxpayer_id` (10-digit Ukrainian tax ID / ІПН). The `taxpayer_id` field must be present in `form.cleaned_data` — add it to your registration form.
 2. The existing `RegisterView` creates the `User` object as usual.
 3. `ECPGenerateMixin` runs automatically after `form_valid()`:
    - Generates an ECDSA P-256 key pair.
@@ -99,10 +99,9 @@ AUTHENTICATION_BACKENDS = [
     'ecp_auth.backends.ECPAuthenticationBackend',
 ]
 
-ECP_AUTH = {
-    'NONCE_TTL_SECONDS': 300,
-    'AUTO_CREATE_USER': True,
-}
+# Optional: nonce lifetime (default 5 minutes)
+from datetime import timedelta
+NONCE_LIFETIME = timedelta(minutes=5)
 ```
 
 **2. urls.py**
@@ -160,7 +159,6 @@ ECPAuthError
 - Python >= 3.12
 - Django >= 4.2
 - cryptography >= 42.0
-- asn1crypto >= 1.5
 
 ---
 

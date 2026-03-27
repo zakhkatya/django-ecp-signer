@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth import get_user_model
 
@@ -11,6 +13,8 @@ from .exceptions import (
     InvalidCertificateError,
     CertificateExpiredError,
 )
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -34,12 +38,13 @@ class ECPAuthenticationBackend(ModelBackend):
             InvalidSignatureError,
             InvalidCertificateError,
             CertificateExpiredError,
-        ):
+        ) as exc:
+            logger.warning("ECP authentication failed for taxpayer_id=%s: %s", taxpayer_id, exc)
             return None
 
-    def _get_nonce(self, nonce_id: str) -> ECPNonce:
+    def _get_nonce(self, nonce_id: int) -> ECPNonce:
         try:
-            nonce = ECPNonce.objects.get(value=nonce_id)
+            nonce = ECPNonce.objects.get(pk=nonce_id)
         except ECPNonce.DoesNotExist:
             raise NonceNotFoundError(f"Nonce not found: {nonce_id}")
         if not nonce.is_valid():
